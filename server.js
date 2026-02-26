@@ -9,9 +9,9 @@ app.post('/api/suggest-meals', async (req, res) => {
   const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday } = req.body;
 
   const prompt = `
-    Based on the following nutritional needs, suggest 3 realistic meals (breakfast, lunch, dinner) that together would fit the remaining daily needs. For each meal, provide:
+    Based on the following nutritional needs, suggest 3 simple, easy-to-make meals (breakfast, lunch, dinner) that together would fit the remaining daily needs. Use only common, accessible ingredients that are easy to find in any grocery store. For each meal, provide:
     - Meal name
-    - Brief description
+    - Brief description (2-3 sentences)
     - Estimated macros (calories, protein, carbs, fat)
     - Why it's a good choice
 
@@ -21,6 +21,8 @@ app.post('/api/suggest-meals', async (req, res) => {
     Remaining fat: ${remainingFat}g
     User's goal: ${userGoal}
     Already eaten today: ${eatenToday.join(', ') || 'nothing yet'}
+
+    Keep the recipes very simple, with 5 ingredients max per meal. Avoid fancy or hard-to-find items. Make it realistic for a busy person to prepare.
 
     Format the response in a friendly, easy-to-read way. Use bullet points.
   `;
@@ -48,7 +50,6 @@ app.post('/api/suggest-meals', async (req, res) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Gemini API error:', response.status, errorText);
-      // Check for quota exceeded
       if (response.status === 429) {
         return res.status(429).json({ error: 'Quota exceeded. Please try again later or enable billing.' });
       }
