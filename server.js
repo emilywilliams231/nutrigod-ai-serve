@@ -1,13 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Get API key from environment variable (set in Render)
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 app.post('/api/suggest-meals', async (req, res) => {
   const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday } = req.body;
@@ -30,14 +26,41 @@ app.post('/api/suggest-meals', async (req, res) => {
   `;
 
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error('GEMINI_API_KEY not set in environment');
+      return res.status(500).json({ error: 'Server configuration error' });
+    }
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: prompt }]
+          }]
+        })
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Gemini API error:', response.status, errorText);
+      // Check for quota exceeded
+      if (response.status === 429) {
+        return res.status(429).json({ error: 'Quota exceeded. Please try again later or enable billing.' });
+      }
+      return res.status(500).json({ error: 'AI service error' });
+    }
+
+    const data = await response.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || 'No suggestions available.';
 
     res.json({ suggestions: text });
   } catch (error) {
-    console.error('AI error:', error);
+    console.error('AI error:', error.message);
     res.status(500).json({ error: 'AI service error' });
   }
 });
