@@ -5,27 +5,41 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/suggest-meals', async (req, res) => {
-  const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday } = req.body;
-
-  const prompt = `
-    Based on the following nutritional needs, suggest 3 simple, easy-to-make meals (breakfast, lunch, dinner) that together would fit the remaining daily needs. Use only common, accessible ingredients that are easy to find in any grocery store. For each meal, provide:
+// System prompt to guide the AI's behaviour
+const SYSTEM_PROMPT = `
+You are a helpful nutrition and recipe assistant. Your task is to suggest meal ideas that fit the user's remaining daily macros (calories, protein, carbs, fat). 
+You should:
+- Suggest 3 meal ideas (can be breakfast, lunch, dinner, or snacks) that together would approximately meet the remaining needs.
+- Include a variety of cuisines, **especially Nigerian dishes** (e.g., jollof rice, egusi soup, moi moi, yam porridge, etc.) when appropriate.
+- Keep recipes simple, with common, accessible ingredients that are easy to find in any grocery store or local market.
+- For each meal, provide:
     - Meal name
-    - Brief description (2-3 sentences)
+    - Brief description (2‑3 sentences)
     - Estimated macros (calories, protein, carbs, fat)
-    - Why it's a good choice
+    - Why it's a good choice for the user's goals
+- If the user provides a follow‑up query (e.g., "suggest something with chicken" or "more Nigerian dishes"), incorporate that request into your response.
+- Be friendly, encouraging, and informative.
+`;
 
-    Remaining calories: ${remainingCals} kcal
-    Remaining protein: ${remainingProtein}g
-    Remaining carbs: ${remainingCarbs}g
-    Remaining fat: ${remainingFat}g
-    User's goal: ${userGoal}
-    Already eaten today: ${eatenToday.join(', ') || 'nothing yet'}
+app.post('/api/suggest-meals', async (req, res) => {
+  const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday, followup } = req.body;
 
-    Keep the recipes very simple, with 5 ingredients max per meal. Avoid fancy or hard-to-find items. Make it realistic for a busy person to prepare.
+  // Build the user prompt
+  let userPrompt = `
+Remaining daily needs:
+- Calories: ${remainingCals} kcal
+- Protein: ${remainingProtein}g
+- Carbs: ${remainingCarbs}g
+- Fat: ${remainingFat}g
+User's goal: ${userGoal}
+Already eaten today: ${eatenToday?.join(', ') || 'nothing yet'}
+`;
 
-    Format the response in a friendly, easy-to-read way. Use bullet points.
-  `;
+  if (followup) {
+    userPrompt += `\nFollow‑up request: ${followup}`;
+  }
+
+  userPrompt += `\nPlease suggest 3 meal ideas that fit these macros. Include Nigerian dishes where appropriate.`;
 
   try {
     const apiKey = process.env.GEMINI_API_KEY;
@@ -35,14 +49,21 @@ app.post('/api/suggest-meals', async (req, res) => {
     }
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{
-            parts: [{ text: prompt }]
-          }]
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: SYSTEM_PROMPT }]
+            },
+            {
+              role: "user",
+              parts: [{ text: userPrompt }]
+            }
+          ]
         })
       }
     );
