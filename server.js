@@ -90,9 +90,9 @@ const providers = [
 ];
 
 app.post('/api/suggest-meals', async (req, res) => {
-  const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday, followup } = req.body;
+  const { remainingCals, remainingProtein, remainingCarbs, remainingFat, userGoal, eatenToday, followup, lastSuggestions } = req.body;
 
-  // Build the user prompt (exactly as you had it)
+  // Build the user prompt – include context if this is a follow‑up
   let userPrompt = `
 Remaining daily needs:
 - Calories: ${remainingCals} kcal
@@ -104,10 +104,11 @@ Already eaten today: ${eatenToday?.join(', ') || 'nothing yet'}
 `;
 
   if (followup) {
-    userPrompt += `\nFollow‑up request: ${followup}`;
+    // Include the previous AI response so the AI knows what was just discussed
+    userPrompt += `\nPreviously I suggested these meals:\n${lastSuggestions || 'No previous suggestions.'}\n\nNow the user asks: ${followup}`;
+  } else {
+    userPrompt += `\nPlease suggest 3 meal ideas that fit these macros. Include Nigerian dishes where appropriate.`;
   }
-
-  userPrompt += `\nPlease suggest 3 meal ideas that fit these macros. Include Nigerian dishes where appropriate.`;
 
   // Try each provider in order
   for (const provider of providers) {
